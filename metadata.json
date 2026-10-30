@@ -1,0 +1,8 @@
+{
+  "name": "Pembukuan UMKM Pro",
+  "description": "Aplikasi pembukuan keuangan modern untuk UMKM Indonesia dengan pencatatan pemasukan, pengeluaran, saldo kas, laba bersih, grafik, dan laporan keuangan komprehensif.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

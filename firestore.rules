@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all unknown collections and documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation for UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.userId == userId &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 100 &&
+        (!('ownerName' in data) || (data.ownerName is string && data.ownerName.size() <= 100)) &&
+        (!('businessPhone' in data) || (data.businessPhone is string && data.businessPhone.size() <= 30)) &&
+        (!('businessAddress' in data) || (data.businessAddress is string && data.businessAddress.size() <= 250)) &&
+        (!('monthlyProfitTarget' in data) || (data.monthlyProfitTarget is number && data.monthlyProfitTarget >= 0)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50));
+    }
+
+    // Validation for Transaction
+    function isValidTransaction(data, userId) {
+      return data.id is string && data.id.size() <= 128 &&
+        data.userId == userId &&
+        (data.type == 'income' || data.type == 'expense') &&
+        data.amount is number && data.amount > 0 && data.amount <= 1000000000000 &&
+        data.category is string && data.category.size() > 0 && data.category.size() <= 80 &&
+        data.date is string && data.date.size() > 0 && data.date.size() <= 35 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 250)) &&
+        (!('paymentMethod' in data) || (data.paymentMethod in ['cash', 'bank_transfer', 'qris', 'ewallet', 'receivable_payable', 'other'])) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+        (!('receiptUrl' in data) || (data.receiptUrl is string && data.receiptUrl.size() <= 500)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50));
+    }
+
+    // Validation for Category
+    function isValidCategory(data, userId) {
+      return data.id is string && data.id.size() <= 128 &&
+        data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 60 &&
+        (data.type == 'income' || data.type == 'expense') &&
+        (!('color' in data) || (data.color is string && data.color.size() <= 30)) &&
+        (!('icon' in data) || (data.icon is string && data.icon.size() <= 40)) &&
+        (!('isDefault' in data) || data.isDefault is bool) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50));
+    }
+
+    // Users collection and subcollections
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Transactions subcollection
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming(), userId) && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      // Categories subcollection
+      match /categories/{categoryId} {
+        allow get: if isOwner(userId) && isValidId(categoryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming(), userId) && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(categoryId);
+      }
+    }
+  }
+}
